@@ -1,0 +1,48 @@
+// src/handler.rs
+
+use crate::request::{Method, Request};
+use crate::response::{Response, StatusCode};
+use std::fs;
+use std::net::TcpStream;
+
+fn get_content_type(path: &str) -> &str {
+    if path.ends_with(".html") {
+        "text/html"
+    } else if path.ends_with(".css") {
+        "text/css"
+    } else if path.ends_with(".js") {
+        "application/javascript"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") {
+        "image/jpeg"
+    } else if path.ends_with(".json") {
+        "application/json"
+    } else {
+        "application/octet-stream"
+    }
+}
+
+fn serve_file(path: &str) -> Response {
+    let file_path = format!("www{}", path);
+
+    match fs::read(&file_path) {
+        Ok(contents) => {
+            let content_type = get_content_type(path);
+            Response::new(StatusCode::Ok, content_type, contents)
+        }
+        Err(_) => Response::error(StatusCode::NotFound),
+    }
+}
+
+pub fn handle(req: Request, stream: &mut TcpStream) {
+    let response = match req.method {
+        Method::Get => serve_file(&req.path),
+        Method::Post | Method::Delete => {
+            Response::error(StatusCode::MethodNotAllowed)
+        }
+        Method::Unknown(_) => Response::error(StatusCode::MethodNotAllowed),
+    };
+
+    response.send(stream);
+}
