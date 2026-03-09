@@ -7,14 +7,51 @@ use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 
 fn handle_connection(mut stream: TcpStream) {
-    let mut buffer = [0; 1024];
+    // Step 1 — read headers first (until \r\n\r\n)
+    let mut header_buf = Vec::new();
+    let mut byte = [0u8; 1];
 
-    if let Err(e) = stream.read(&mut buffer) {
-        eprintln!("Failed to read from connection: {}", e);
-        return;
+    loop {
+        match stream.read(&mut byte) {
+            Ok(0) => return, // connection closed
+            Ok(_) => {
+                header_buf.push(byte[0]);
+                if header_buf.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to read headers: {}", e);
+                return;
+            }
+        }
     }
 
-    match Request::parse(&buffer) {
+    // Step 2 — parse what we have so far to get Content-Length
+    let partial_req = Request::parse(&header_buf);
+
+    let content_length = match &partial_req {
+        Some(req) => req.content_length(),
+        None => {
+            Response::error(StatusCode::BadRequest).send(&mut stream);
+            return;
+        }
+    };
+
+    // Step 3 — read the body if there is one
+    let mut body = vec![0u8; content_length];
+    if content_length > 0 {
+        if let Err(e) = stream.read_exact(&mut body) {
+            eprintln!("Failed to read body: {}", e);
+            return;
+        }
+    }
+
+    // Step 4 — combine headers + body and parse the full request
+    let mut full_request = header_buf;
+    full_request.extend_from_slice(&body);
+
+    match Request::parse(&full_request) {
         Some(req) => {
             println!("Method: {:?}, Path: {}", req.method, req.path);
             handler::handle(req, &mut stream);

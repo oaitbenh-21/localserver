@@ -37,16 +37,15 @@ fn serve_file(path: &str) -> Response {
             let content_type = get_content_type(&normalized);
             Response::new(StatusCode::Ok, content_type, contents)
         }
-        Err(_) => Response::error(StatusCode::NotFound)
+        Err(_) => Response::error(StatusCode::NotFound),
     }
 }
 
 pub fn handle(req: Request, stream: &mut TcpStream) {
+    println!("Headers: {:?}", req.headers);
     let response = match req.method {
         Method::Get => serve_file(&req.path),
-        Method::Post | Method::Delete => {
-            Response::error(StatusCode::MethodNotAllowed)
-        }
+        Method::Post | Method::Delete => Response::error(StatusCode::MethodNotAllowed),
         Method::Unknown(_) => Response::error(StatusCode::MethodNotAllowed),
     };
 
