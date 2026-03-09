@@ -1,3 +1,5 @@
+mod request;
+
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
@@ -55,10 +57,10 @@ fn handle_connection(mut stream: TcpStream) {
         return;
     }
 
-    match parse_request_line(&buffer) {
-        Some((method, path, _version)) => {
-            println!("Method: {}, Path: {}", method, path);
-            serve_file(&mut stream, &path);
+    match request::Request::parse(&buffer) {
+        Some(req) => {
+            println!("Method: {:?}, Path: {}", req.method, req.path);
+            serve_file(&mut stream, &req.path);
         }
         None => {
             eprintln!("Could not parse request");
