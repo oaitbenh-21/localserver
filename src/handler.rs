@@ -22,16 +22,22 @@ fn get_content_type(path: &str) -> &str {
         "application/octet-stream"
     }
 }
-
 fn serve_file(path: &str) -> Response {
-    let file_path = format!("www{}", path);
+    // If path ends with "/" append "index.html", otherwise use as-is
+    let normalized = if path.ends_with('/') {
+        format!("{}index.html", path)
+    } else {
+        path.to_string()
+    };
+
+    let file_path = format!("www{}", normalized);
 
     match fs::read(&file_path) {
         Ok(contents) => {
-            let content_type = get_content_type(path);
+            let content_type = get_content_type(&normalized);
             Response::new(StatusCode::Ok, content_type, contents)
         }
-        Err(_) => Response::error(StatusCode::NotFound),
+        Err(_) => Response::error(StatusCode::NotFound)
     }
 }
 
