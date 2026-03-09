@@ -1,14 +1,44 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
+use std::fs;
+use std::path::Path;
+
+fn serve_file(stream: &mut TcpStream, path: &str) {
+    // Strip the leading "/" and prefix with our www folder
+    let file_path = format!("www{}", path);
+
+    match fs::read(&file_path) {
+        Ok(contents) => {
+            let response_header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n",
+                contents.len()
+            );
+            if let Err(e) = stream.write_all(response_header.as_bytes()) {
+                eprintln!("Failed to write header: {}", e);
+                return;
+            }
+            if let Err(e) = stream.write_all(&contents) {
+                eprintln!("Failed to write body: {}", e);
+            }
+        }
+        Err(_) => {
+            let body = "<html><body><h1>404 - Not Found</h1></body></html>";
+            let response = format!(
+                "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            if let Err(e) = stream.write_all(response.as_bytes()) {
+                eprintln!("Failed to write 404: {}", e);
+            }
+        }
+    }
+}
+
 fn parse_request_line(buffer: &[u8]) -> Option<(String, String, String)> {
-    // Convert raw bytes to a string
     let request = String::from_utf8_lossy(buffer);
-
-    // The first line ends at the first \r\n
     let first_line = request.lines().next()?;
-
-    // Split by space — should give us ["GET", "/path", "HTTP/1.1"]
     let mut parts = first_line.split_whitespace();
 
     let method = parts.next()?.to_string();
@@ -17,53 +47,40 @@ fn parse_request_line(buffer: &[u8]) -> Option<(String, String, String)> {
 
     Some((method, path, version))
 }
-
 fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
-    stream.read(&mut buffer).unwrap();
+
+    if let Err(e) = stream.read(&mut buffer) {
+        eprintln!("Failed to read from connection: {}", e);
+        return;
+    }
 
     match parse_request_line(&buffer) {
         Some((method, path, _version)) => {
             println!("Method: {}, Path: {}", method, path);
-
-            let (status, body) = match path.as_str() {
-                "/" => (
-                    "HTTP/1.1 200 OK",
-                    "<html><body><h1>Welcome to the home page</h1></body></html>",
-                ),
-                "/about" => (
-                    "HTTP/1.1 200 OK",
-                    "<html><body><h1>About page</h1></body></html>",
-                ),
-                _ => (
-                    "HTTP/1.1 404 Not Found",
-                    "<html><body><h1>404 - Page not found</h1></body></html>",
-                ),
-            };
-
-            let response = format!(
-                "{}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}",
-                status,
-                body.len(),
-                body
-            );
-
-            stream.write_all(response.as_bytes()).unwrap();
+            serve_file(&mut stream, &path);
         }
         None => {
-            println!("Could not parse request");
+            eprintln!("Could not parse request");
             let response = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-            stream.write_all(response.as_bytes()).unwrap();
+            if let Err(e) = stream.write_all(response.as_bytes()) {
+                eprintln!("Failed to write 400: {}", e);
+            }
         }
     }
 }
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8081").unwrap();
-    println!("Server listening on http://localhost:8081");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind("127.0.0.1:8080")?;
+
+    println!("Server listening on http://localhost:8080");
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        handle_connection(stream);
+        match stream {
+            Ok(stream) => handle_connection(stream),
+            Err(e) => eprintln!("Failed to accept connection: {}", e),
+        }
     }
+
+    Ok(())
 }
