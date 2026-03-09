@@ -1,4 +1,5 @@
 mod request;
+mod response;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -62,12 +63,10 @@ fn handle_connection(mut stream: TcpStream) {
             println!("Method: {:?}, Path: {}", req.method, req.path);
             serve_file(&mut stream, &req.path);
         }
+
         None => {
             eprintln!("Could not parse request");
-            let response = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-            if let Err(e) = stream.write_all(response.as_bytes()) {
-                eprintln!("Failed to write 400: {}", e);
-            }
+            response::Response::error(response::StatusCode::BadRequest).send(&mut stream);
         }
     }
 }
