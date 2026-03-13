@@ -1,0 +1,49 @@
+server {
+    host 127.0.0.1;
+    port 8080;
+
+    client_max_body_size 20MB;
+
+    error_page 404 ./error_pages/404.html;
+    error_page 500 ./error_pages/500.html;
+    error_page 403 ./error_pages/403.html;
+
+    location / {
+        root ./www;
+        index index.html;
+        methods GET;
+        autoindex off;
+    }
+
+    location /images {
+        root ./www/images;
+        methods GET;
+        autoindex off;
+    }
+
+    location /upload {
+        root ./uploads;
+        methods POST;
+    }
+
+    location /delete {
+        root ./uploads;
+        methods DELETE;
+    }
+
+    location /files {
+        root ./files;
+        autoindex on;
+        methods GET;
+    }
+
+    location /cgi {
+        root ./cgi-bin;
+        methods GET POST;
+        cgi .py;
+    }
+
+    location /old-page {
+        redirect /new-page;
+    }
+}
