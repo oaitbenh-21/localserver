@@ -124,7 +124,23 @@ impl Server {
         // With edge-triggered we must accept in a loop until WouldBlock
         loop {
             match listener.accept {
-                Ok((stream, addr)) => {}
+                Ok((stream, addr)) => {
+                    // stream --> the connection socket
+                    println!("New connection: {}", addr);
+                    let fd = stream.as_raw_fd();
+
+                    // Set non-blocking BEFORE adding to epoll
+                    set_nonblocking(fd)?;
+                    epoll.add(fd)?;
+
+                    // Initialize an empty buffer for this client
+                    buffers.insert(fd, Vec::new());
+
+                    // Prevent Rust from closing the socket when
+                    // stream drops at end of this block
+                    std::mem::forget(stream);
+                }
+
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     // No more incoming connections right now — stop looping
                     break;
