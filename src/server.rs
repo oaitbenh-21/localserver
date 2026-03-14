@@ -1,6 +1,6 @@
 // src/server.rs
 
-use crate::epoll::{Epoll, MAX_EVENTS, set_nonblocking};
+use crate::epoll::{set_nonblocking, Epoll, MAX_EVENTS};
 use crate::handler;
 use crate::request::Request;
 use crate::response::{Response, StatusCode};
@@ -74,25 +74,56 @@ impl Server {
             addr: addr.to_string(),
         }
     }
-    pub fn run2(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // ── 1. Set up the listening socket ────────────────────────────────
+    pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+        //  ___ Set up the listening socket ____________
         let listener = TcpListener::bind(&self.addr)?;
+        println!("{:?}", listener);
         set_nonblocking(listener.as_raw_fd())?;
         println!("Server listening on http://{}", self.addr);
-        Ok(())
-    }
 
-    pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let listener = TcpListener::bind(&self.addr)?;
-        println!("Server listening on http://{}", self.addr);
+        //  Create epoll and register the listening socket __
+        let epoll = Epoll::new()?;
+        epoll.add(listener.as_raw_fd())?;
+        println!("{:?}", epoll);
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => handle_connection(stream),
-                Err(e) => eprintln!("Failed to accept connection: {}", e),
+        //  Buffer to store per-connection incoming data __
+        // Key = client fd, Value = bytes received so far
+        let mut buffers: HashMap<i32, Vec<u8>> = HashMap::new();
+
+        // The event loop ─────────────────────────────────────────────
+        let mut events = vec![epoll_event { events: 0, u64: 0 }; MAX_EVENTS];
+
+        loop {
+            let ready = epoll.wait(&mut events)?;
+
+            for i in 0..ready {
+                let fd = events[i].u64 as i32;
+
+                if fd == listener.as_raw_fd() {
+                    // ── New connection arriving ────────────────────────────
+                    self.accept_connections(&listener, &epoll, &mut buffers)?;
+                } else {
+                    // ── Existing client has data ───────────────────────────
+                    self.handle_client(fd, &epoll, &mut buffers);
+                }
             }
         }
 
         Ok(())
     }
+
+    fn accept_connections() {}
+    // pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+    //     let listener = TcpListener::bind(&self.addr)?;
+    //     println!("Server listening on http://{}", self.addr);
+
+    //     for stream in listener.incoming() {
+    //         match stream {
+    //             Ok(stream) => handle_connection(stream),
+    //             Err(e) => eprintln!("Failed to accept connection: {}", e),
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }

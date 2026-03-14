@@ -8,6 +8,7 @@ use std::os::unix::io::RawFd;
 
 pub const MAX_EVENTS: usize = 128;
 
+#[derive(Debug)]
 pub struct Epoll {
     fd: RawFd,
 }
