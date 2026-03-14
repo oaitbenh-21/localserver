@@ -4,6 +4,8 @@ use crate::epoll::{set_nonblocking, Epoll, MAX_EVENTS};
 use crate::handler;
 use crate::request::Request;
 use crate::response::{Response, StatusCode};
+use libc::epoll_event;
+use std::collections::HashMap;
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::io::AsRawFd;
@@ -112,7 +114,33 @@ impl Server {
         Ok(())
     }
 
-    fn accept_connections() {}
+    fn accept_connections(
+        &self,
+        listener: &TcpListener,
+        epoll: &Epoll,
+        buffers: &mut HashMap<i32, Vec<u8>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        println!("accepting connection");
+        // With edge-triggered we must accept in a loop until WouldBlock
+        loop {
+            match listener.accept {
+                Ok((stream, addr)) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No more incoming connections right now — stop looping
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("Accept error: {}", e);
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_client(&self, fd: i32, epoll: &Epoll, buffers: &mut HashMap<i32, Vec<u8>>) {
+        println!("handling client");
+    }
     // pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
     //     let listener = TcpListener::bind(&self.addr)?;
     //     println!("Server listening on http://{}", self.addr);
