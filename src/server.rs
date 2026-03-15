@@ -97,18 +97,37 @@ impl Server {
         // The event loop ─────────────────────────────────────────────
         let mut events = vec![epoll_event { events: 0, u64: 0 }; MAX_EVENTS];
 
-        loop {
-            let ready = epoll.wait(&mut events)?;
+        const TIMEOUT_SECS: u64 = 30;
 
+        loop {
+            let ready = epoll.wait(&mut events, 1000)?;
+            // ── Check for timed out connections ──────────────────────────────
+            let now = Instant::now();
+            let mut timed_out: Vec<i32> = Vec::new();
+
+            for (fd, connect_time) in connect_times.iter() {
+                let elapsed = now.duration_since(*connect_time).as_secs();
+                if elapsed > TIMEOUT_SECS {
+                    timed_out.push(*fd);
+                }
+            }
+
+            for fd in timed_out {
+                eprintln!("Connection {} timed out", fd);
+                let _ = epoll.remove(fd);
+                buffers.remove(&fd);
+                connect_times.remove(&fd);
+                unsafe { libc::close(fd) };
+            }
+            // ── Handle ready events ───────────────────────────────────────
             for i in 0..ready {
                 let fd = events[i].u64 as i32;
 
                 if fd == listener.as_raw_fd() {
-                    // ── New connection arriving ────────────────────────────
-                    self.accept_connections(&listener, &epoll, &mut buffers)?;
+                    self.accept_connections(&listener, &epoll, &mut buffers, &mut connect_times)?;
                 } else {
-                    // ── Existing client has data ───────────────────────────
                     self.handle_client(fd, &epoll, &mut buffers);
+                    connect_times.remove(&fd); // ← remove when connection is handled
                 }
             }
         }
@@ -121,6 +140,7 @@ impl Server {
         listener: &TcpListener,
         epoll: &Epoll,
         buffers: &mut HashMap<i32, Vec<u8>>,
+        connect_times: &mut HashMap<i32, Instant>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         println!("accepting connection");
         // With edge-triggered we must accept in a loop until WouldBlock
@@ -137,7 +157,8 @@ impl Server {
 
                     // Initialize an empty buffer for this client
                     buffers.insert(fd, Vec::new());
-
+                    // time of registration
+                    connect_times.insert(fd, Instant::now());
                     // Prevent Rust from closing the socket when
                     // stream drops at end of this block
                     std::mem::forget(stream);

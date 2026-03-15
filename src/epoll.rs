@@ -47,13 +47,17 @@ impl Epoll {
         Ok(())
     }
 
-    pub fn wait(&self, events: &mut [epoll_event]) -> Result<usize, std::io::Error> {
+    pub fn wait(
+        &self,
+        events: &mut [epoll_event],
+        timeout_ms: i32,
+    ) -> Result<usize, std::io::Error> {
         let result = unsafe {
             epoll_wait(
                 self.fd,
                 events.as_mut_ptr(),
                 events.len() as i32,
-                -1, // -1 means block forever until something is ready
+                timeout_ms, // -1 means block forever until something is ready
             )
         };
 
@@ -72,13 +76,13 @@ impl Drop for Epoll {
 }
 
 // add this at the top with the other use statements
-use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+use libc::{F_GETFL, F_SETFL, O_NONBLOCK, fcntl};
 // fcntl  read and modify  settings or fd.
 // The name fcntl literally means "file control". Same pattern as epoll_ctl
 // F_GETFL  →  GET the FLags currently set on this fd
 // F_SETFL  →  SET the FLags on this fd
 pub fn set_nonblocking(fd: RawFd) -> Result<(), std::io::Error> {
-    let flags = unsafe { fcntl(fd, F_GETFL, 0) };// step 1: read current flags
+    let flags = unsafe { fcntl(fd, F_GETFL, 0) }; // step 1: read current flags
     if flags < 0 {
         return Err(std::io::Error::last_os_error());
     }
