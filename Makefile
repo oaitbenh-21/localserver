@@ -56,7 +56,7 @@ test-all:
 	curl -i $(BASE_URL)/uploads/test.txt
 
 	@echo "\n========== 5. Bad request =========="
-	printf "GARBAGE\r\n\r\n" | nc -q 1 localhost 8080
+	curl -i --http1.1 -X GARBAGE http://localhost:8080/
 
 	@echo "\n========== 6. Unknown method (expect 405) =========="
 	curl -i -X PATCH $(BASE_URL)/uploads/test.txt
