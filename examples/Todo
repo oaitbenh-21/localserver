@@ -1,0 +1,7 @@
+Listen on 0.0.0.0 →  all interfaces
+
+support multiple ports using mio (see the example)
+
+forward traffic to different backend servers -> acts like a load balance
+
+just check the local adress of each connection to know which server you should call
