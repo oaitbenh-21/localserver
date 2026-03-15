@@ -1,6 +1,6 @@
 // src/server.rs
 
-use crate::epoll::{set_nonblocking, Epoll, MAX_EVENTS};
+use crate::epoll::{Epoll, MAX_EVENTS, set_nonblocking};
 use crate::handler;
 use crate::request::Request;
 use crate::response::{Response, StatusCode};
@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::io::AsRawFd;
+use std::time::Instant;
 
 fn handle_connection(mut stream: TcpStream) {
     // Step 1 — read headers first (until \r\n\r\n)
@@ -91,6 +92,7 @@ impl Server {
         //  Buffer to store per-connection incoming data __
         // Key = client fd, Value = bytes received so far
         let mut buffers: HashMap<i32, Vec<u8>> = HashMap::new();
+        let mut connect_times: HashMap<i32, Instant> = HashMap::new();
 
         // The event loop ─────────────────────────────────────────────
         let mut events = vec![epoll_event { events: 0, u64: 0 }; MAX_EVENTS];
@@ -123,7 +125,7 @@ impl Server {
         println!("accepting connection");
         // With edge-triggered we must accept in a loop until WouldBlock
         loop {
-            match listener.accept {
+            match listener.accept() {
                 Ok((stream, addr)) => {
                     // stream --> the connection socket
                     println!("New connection: {}", addr);
@@ -153,21 +155,58 @@ impl Server {
         }
         Ok(())
     }
-
     fn handle_client(&self, fd: i32, epoll: &Epoll, buffers: &mut HashMap<i32, Vec<u8>>) {
-        println!("handling client");
+        let mut buf = [0u8; 4096];
+        let mut stream = unsafe {
+            use std::os::unix::io::FromRawFd;
+            std::net::TcpStream::from_raw_fd(fd)
+        };
+
+        // ── Read loop — drain the entire buffer ───────────────────────────
+        loop {
+            match stream.read(&mut buf) {
+                Ok(0) => {
+                    // Client disconnected
+                    println!("Client {} disconnected", fd);
+                    let _ = epoll.remove(fd);
+                    buffers.remove(&fd);
+                    return;
+                }
+                Ok(n) => {
+                    // Append new bytes to this client's buffer
+                    if let Some(buffer) = buffers.get_mut(&fd) {
+                        buffer.extend_from_slice(&buf[..n]);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // Buffer fully drained — now process what we have
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("Read error on fd {}: {}", fd, e);
+                    let _ = epoll.remove(fd);
+                    buffers.remove(&fd);
+                    return;
+                }
+            }
+        }
+        // ── Process the request ───────────────────────────────────────────
+        if let Some(data) = buffers.get(&fd) {
+            match Request::parse(data) {
+                Some(req) => {
+                    println!("Method: {:?}, Path: {}", req.method, req.path);
+                    handler::handle(req, &mut stream);
+                }
+                None => {
+                    Response::error(StatusCode::BadRequest).send(&mut stream);
+                }
+            }
+        }
+        // ── Clean up after responding ─────────────────────────────────────
+        let _ = epoll.remove(fd);
+        buffers.remove(&fd);
+
+        // Prevent double-close — we'll manage this fd manually
+        std::mem::forget(stream);
     }
-    // pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-    //     let listener = TcpListener::bind(&self.addr)?;
-    //     println!("Server listening on http://{}", self.addr);
-
-    //     for stream in listener.incoming() {
-    //         match stream {
-    //             Ok(stream) => handle_connection(stream),
-    //             Err(e) => eprintln!("Failed to accept connection: {}", e),
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
 }

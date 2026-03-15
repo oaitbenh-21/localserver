@@ -18,6 +18,8 @@ fn get_content_type(path: &str) -> &str {
         "image/jpeg"
     } else if path.ends_with(".json") {
         "application/json"
+    } else if path.ends_with(".txt") {
+        "text/plain"
     } else {
         "application/octet-stream"
     }
