@@ -49,12 +49,12 @@ impl Response {
             self.content_type,
             self.body.len()
         );
-
+        // write header
         if let Err(e) = stream.write_all(header.as_bytes()) {
             eprintln!("Failed to write response header: {}", e);
             return;
         }
-
+        // write body
         if let Err(e) = stream.write_all(&self.body) {
             eprintln!("Failed to write response body: {}", e);
         }
@@ -64,5 +64,19 @@ impl Response {
     pub fn error(status: StatusCode) -> Response {
         let body = format!("<html><body><h1>{}</h1></body></html>", status.as_str());
         Response::new(status, "text/html", body.into_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use std::net::{TcpListener, TcpStream};
+
+    // ── Helper ────────────────────────────────────────────────────────────
+    // Sends a response to a real TcpStream and reads back the raw bytes
+    // This lets us test the actual bytes that go over the wire
+    fn capture_response(response: Response) -> Vec<u8> {
+        todo!()
     }
 }
