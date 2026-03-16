@@ -25,6 +25,7 @@ impl Server {
         //  ___ Set up the listening socket ____________
         let listener = TcpListener::bind(&self.addr)?;
         println!("{:?}", listener);
+
         set_nonblocking(listener.as_raw_fd())?;
         println!("Server listening on http://{}", self.addr);
 

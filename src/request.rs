@@ -70,3 +70,64 @@ impl Request {
             .unwrap_or(0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    // ── Valid requests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_get_root() {
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert!(matches!(req.method, Method::Get));
+        assert_eq!(req.path, "/");
+        assert_eq!(req.version, "HTTP/1.1");
+    }
+
+    #[test]
+    fn test_parse_get_with_path() {
+        let raw = b"GET /about.html HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert!(matches!(req.method, Method::Get));
+        assert_eq!(req.path, "/about.html");
+    }
+
+    #[test]
+    fn test_parse_post() {
+        let body = "hello world";
+        let raw = format!(
+            "POST /upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let req = Request::parse(raw.as_bytes()).expect("should parse");
+
+        assert!(matches!(req.method, Method::Post));
+        assert_eq!(req.path, "/upload");
+        assert_eq!(req.body, body.as_bytes());
+    }
+
+    #[test]
+    fn test_parse_delete() {
+        let raw = b"DELETE /file.txt HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert!(matches!(req.method, Method::Delete));
+        assert_eq!(req.path, "/file.txt");
+    }
+
+        #[test]
+    fn test_parse_unknown_method() {
+        let raw = b"PATCH /file.txt HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert!(matches!(req.method, Method::Unknown(_)));
+        if let Method::Unknown(m) = req.method {
+            assert_eq!(m, "PATCH");
+        }
+    }
+}
