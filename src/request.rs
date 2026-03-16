@@ -74,7 +74,7 @@ impl Request {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     // ── Valid requests ────────────────────────────────────────────────────
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(req.path, "/file.txt");
     }
 
-        #[test]
+    #[test]
     fn test_parse_unknown_method() {
         let raw = b"PATCH /file.txt HTTP/1.1\r\nHost: localhost\r\n\r\n";
         let req = Request::parse(raw).expect("should parse");
@@ -129,5 +129,81 @@ mod tests {
         if let Method::Unknown(m) = req.method {
             assert_eq!(m, "PATCH");
         }
+    }
+    // ── Headers ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_headers_are_parsed() {
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: keep-alive\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert_eq!(
+            req.headers.get("host").map(|s| s.as_str()),
+            Some("localhost:8080")
+        );
+        assert_eq!(
+            req.headers.get("connection").map(|s| s.as_str()),
+            Some("keep-alive")
+        );
+    }
+
+    #[test]
+    fn test_headers_are_lowercase() {
+        let raw = b"GET / HTTP/1.1\r\nContent-Type: text/html\r\nX-Custom-Header: value\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        // Must be accessible in lowercase regardless of original casing
+        assert!(req.headers.contains_key("content-type"));
+        assert!(req.headers.contains_key("x-custom-header"));
+    }
+    #[test]
+    fn test_content_length_parsed() {
+        let raw = b"POST / HTTP/1.1\r\nContent-Length: 42\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert_eq!(req.content_length(), 42);
+    }
+    #[test]
+    fn test_content_length_defaults_to_zero() {
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert_eq!(req.content_length(), 0);
+    }
+    #[test]
+    fn test_header_value_with_colon() {
+        // Header values can contain colons — must split on first colon only
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        // Value should be "localhost:8080" not just "localhost"
+        assert_eq!(
+            req.headers.get("host").map(|s| s.as_str()),
+            Some("localhost:8080")
+        );
+    }
+    // ── Body ──────────────────────────────────────────────────────────────
+    #[test]
+    fn test_body_is_captured() {
+        let raw = b"POST /upload HTTP/1.1\r\nHost: localhost\r\n\r\nbody content here";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert_eq!(req.body, b"body content here");
+    }
+    #[test]
+    fn test_empty_body_on_get() {
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let req = Request::parse(raw).expect("should parse");
+
+        assert!(req.body.is_empty());
+    }
+        #[test]
+    fn test_binary_body() {
+        // Body should survive as raw bytes even if not valid UTF-8
+        let mut raw = b"POST /upload HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec();
+        raw.extend_from_slice(&[0xFF, 0xFE, 0x00, 0x01]);
+        let req = Request::parse(&raw).expect("should parse");
+
+        assert_eq!(req.body, &[0xFF, 0xFE, 0x00, 0x01]);
     }
 }
