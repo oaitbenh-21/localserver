@@ -197,7 +197,7 @@ mod tests {
 
         assert!(req.body.is_empty());
     }
-        #[test]
+    #[test]
     fn test_binary_body() {
         // Body should survive as raw bytes even if not valid UTF-8
         let mut raw = b"POST /upload HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec();
@@ -206,4 +206,32 @@ mod tests {
 
         assert_eq!(req.body, &[0xFF, 0xFE, 0x00, 0x01]);
     }
+    // ── Malformed requests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_empty_buffer_returns_none() {
+        let raw = b"";
+        assert!(Request::parse(raw).is_none());
+    }
+
+    #[test]
+    fn test_missing_separator_returns_none() {
+        // No \r\n\r\n — headers never end
+        let raw = b"GET / HTTP/1.1\r\nHost: localhost";
+        assert!(Request::parse(raw).is_none());
+    }
+
+    #[test]
+    fn test_missing_path_returns_none() {
+        // Only method, no path or version
+        let raw = b"GET\r\n\r\n";
+        assert!(Request::parse(raw).is_none());
+    }
+    
+    #[test]
+    fn test_completely_garbage_input_returns_none() {
+        let raw = b"GARBAGE DATA WITH NO STRUCTURE";
+        assert!(Request::parse(raw).is_none());
+    }
+
 }
