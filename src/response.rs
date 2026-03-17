@@ -76,7 +76,22 @@ mod tests {
     // ── Helper ────────────────────────────────────────────────────────────
     // Sends a response to a real TcpStream and reads back the raw bytes
     // This lets us test the actual bytes that go over the wire
+    // in darija this is just making a socket and reading from it huh, prettey stupidly elegant.
     fn capture_response(response: Response) -> Vec<u8> {
-        todo!()
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let mut client = TcpStream::connect(addr).unwrap();
+            let mut buf = Vec::new();
+            client.read_to_end(&mut buf).unwrap();
+            buf
+        });
+
+        let (mut stream, _) = listener.accept().unwrap();
+        response.send(&mut stream);
+        drop(stream); // close connection so client's read_to_end finishes
+
+        handle.join().unwrap()
     }
 }
