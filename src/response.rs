@@ -94,4 +94,77 @@ mod tests {
 
         handle.join().unwrap()
     }
+    // ── Wire format ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_response_starts_with_http_version() {
+        let res = Response::new(StatusCode::Ok, "text/plain", b"hi".to_vec());
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        assert!(raw.starts_with("HTTP/1.1"));
+    }
+
+    #[test]
+    fn test_response_contains_status_line() {
+        let res = Response::new(StatusCode::Ok, "text/plain", b"hi".to_vec());
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        assert!(raw.contains("200 OK"));
+    }
+
+    #[test]
+    fn test_response_contains_content_type_header() {
+        let res = Response::new(StatusCode::Ok, "text/css", b"body{}".to_vec());
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        assert!(raw.contains("Content-Type: text/css"));
+    }
+
+    #[test]
+    fn test_content_length_matches_body() {
+        let body = b"hello world".to_vec();
+        let res = Response::new(StatusCode::Ok, "text/plain", body);
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        assert!(raw.contains("Content-Length: 11"));
+    }
+
+    #[test]
+    fn test_header_and_body_separated_by_blank_line() {
+        let res = Response::new(StatusCode::Ok, "text/plain", b"body".to_vec());
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        // \r\n\r\n must exist between headers and body
+        assert!(raw.contains("\r\n\r\n"));
+    }
+
+    #[test]
+    fn test_body_is_after_separator() {
+        let res = Response::new(StatusCode::Ok, "text/plain", b"hello".to_vec());
+        let bytes = capture_response(res);
+        let raw = String::from_utf8_lossy(&bytes);
+
+        let separator = "\r\n\r\n";
+        let body_start = raw.find(separator).unwrap() + separator.len();
+        assert_eq!(&raw[body_start..], "hello");
+    }
+
+    #[test]
+    fn test_binary_body_survives_wire() {
+        let body = vec![0xFF, 0xFE, 0x00, 0x01];
+        let res = Response::new(StatusCode::Ok, "application/octet-stream", body.clone());
+        let bytes = capture_response(res);
+
+        // Find where body starts after \r\n\r\n
+        let separator = b"\r\n\r\n";
+        let sep_pos = bytes.windows(4).position(|w| w == separator).unwrap();
+        let actual_body = &bytes[sep_pos + 4..];
+
+        assert_eq!(actual_body, body.as_slice());
+    }
 }
