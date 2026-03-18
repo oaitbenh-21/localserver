@@ -99,3 +99,23 @@ pub fn handle(req: Request, stream: &mut TcpStream) {
 
     response.send(stream);
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::request::{Method, Request};
+    use std::fs;
+    use std::io::Read;
+    use std::net::{TcpListener, TcpStream};
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    // Creates a temp directory unique to each test
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let path = std::path::PathBuf::from(format!("/tmp/localserver_test_{}", name));
+        let _ = fs::remove_dir_all(&path); // clean up any previous run
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+}
