@@ -25,14 +25,14 @@ fn get_content_type(path: &str) -> &str {
     }
 }
 
-fn serve_file(path: &str) -> Response {
+fn serve_file(path: &str, root: &str) -> Response {
     let normalized = if path.ends_with('/') {
         format!("{}index.html", path)
     } else {
         path.to_string()
     };
 
-    let file_path = format!("www{}", normalized);
+    let file_path = format!("{}{}", root, normalized);
 
     match fs::read(&file_path) {
         Ok(contents) => {
@@ -43,7 +43,7 @@ fn serve_file(path: &str) -> Response {
     }
 }
 
-fn handle_post(req: &Request) -> Response {
+fn handle_post(req: &Request, root: &str) -> Response {
     // Reject empty bodies
     if req.body.is_empty() {
         return Response::error(StatusCode::BadRequest);
@@ -51,7 +51,7 @@ fn handle_post(req: &Request) -> Response {
 
     // Build a safe file path from the URL path
     // POST /upload/photo.png → saves to www/upload/photo.png
-    let file_path = format!("www{}", req.path);
+    let file_path = format!("{}{}", root, req.path);
 
     // Make sure the directory exists
     if let Some(parent) = std::path::Path::new(&file_path).parent() {
@@ -77,8 +77,8 @@ fn handle_post(req: &Request) -> Response {
     }
 }
 
-fn handle_delete(req: &Request) -> Response {
-    let file_path = format!("www{}", req.path);
+fn handle_delete(req: &Request, root: &str) -> Response {
+    let file_path = format!("{}{}", root, req.path);
 
     match fs::remove_file(&file_path) {
         Ok(_) => {
@@ -90,13 +90,16 @@ fn handle_delete(req: &Request) -> Response {
 }
 
 pub fn handle(req: Request, stream: &mut TcpStream) {
+    handle_with_root(req, stream, "www");
+}
+
+pub fn handle_with_root(req: Request, stream: &mut TcpStream, root: &str) {
     let response = match req.method {
-        Method::Get => serve_file(&req.path),
-        Method::Post => handle_post(&req),
-        Method::Delete => handle_delete(&req),
+        Method::Get => serve_file(&req.path, root),
+        Method::Post => handle_post(&req, root),
+        Method::Delete => handle_delete(&req, root),
         Method::Unknown(_) => Response::error(StatusCode::MethodNotAllowed),
     };
-
     response.send(stream);
 }
 
@@ -117,5 +120,46 @@ mod tests {
         let _ = fs::remove_dir_all(&path); // clean up any previous run
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    // Builds a minimal POST request struct with a body
+    fn post(path: &str, body: &[u8]) -> Request {
+        Request {
+            method: Method::Post,
+            path: path.to_string(),
+            version: "HTTP/1.1".to_string(),
+            headers: std::collections::HashMap::new(),
+            body: body.to_vec(),
+        }
+    }
+
+    // Builds a minimal DELETE request struct
+    fn delete(path: &str) -> Request {
+        Request {
+            method: Method::Delete,
+            path: path.to_string(),
+            version: "HTTP/1.1".to_string(),
+            headers: std::collections::HashMap::new(),
+            body: Vec::new(),
+        }
+    }
+
+    // Runs handler::handle and captures raw bytes sent over wire
+    fn capture(req: Request, root: &str) -> Vec<u8> {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let mut client = TcpStream::connect(addr).unwrap();
+            let mut buf = Vec::new();
+            client.read_to_end(&mut buf).unwrap();
+            buf
+        });
+
+        let (mut stream, _) = listener.accept().unwrap();
+        handle_with_root(req, &mut stream, root); // send request, the response is captured at the thread. 
+        drop(stream); // so now we can just close the connection  to inform the thread we are done.  this signals EOF 
+
+        handle.join().unwrap()
     }
 }
