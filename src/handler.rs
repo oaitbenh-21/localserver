@@ -162,4 +162,26 @@ mod tests {
 
         handle.join().unwrap()
     }
+    // Extracts the status line from raw response bytes
+    fn status_line(bytes: &[u8]) -> String {
+        let raw = String::from_utf8_lossy(bytes);
+        raw.lines().next().unwrap_or("").to_string()
+    }
+    // Extracts the body from raw response bytes
+    fn body(bytes: &[u8]) -> Vec<u8> {
+        let separator = b"\r\n\r\n";
+        let pos = bytes.windows(4).position(|w| w == separator).unwrap();
+        bytes[pos + 4..].to_vec()
+    }
+
+    // Extracts a specific header value from raw response bytes
+    fn header<'a>(bytes: &'a [u8], name: &str) -> Option<String> {
+        let raw = String::from_utf8_lossy(bytes);
+        for line in raw.lines() {
+            if line.to_lowercase().starts_with(&name.to_lowercase()) {
+                return Some(line.splitn(2, ':').nth(1)?.trim().to_string());
+            }
+        }
+        None
+    }
 }
