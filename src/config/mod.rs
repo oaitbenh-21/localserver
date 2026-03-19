@@ -1,3 +1,6 @@
+pub mod tokenizer;
+pub mod parser;
+
 #[derive(Debug)]
 pub struct Config {
     pub servers: Vec<Server>,
@@ -10,23 +13,26 @@ pub struct Server {
     pub locations: Vec<Location>,
 }
 
-struct Location {
-    path: String,
-    root: String,
-    index: Option<String>,
-    methods: Vec<Method>,
-    autoindex: bool,
-    redirect: Option<String>,
-    cgi: Option<CGI>,
+#[derive(Debug)]
+pub struct Location {
+    pub path: String,
+    pub root: String,
+    pub index: Option<String>,
+    pub methods: Vec<Method>,
+    pub autoindex: bool,
+    pub redirect: Option<String>,
+    pub cgi: Option<CGI>,
 }
 
-enum Method {
+#[derive(Debug)]
+pub enum Method {
     GET,
     POST,
     DELETE,
 }
 
-struct CGI {
-    extension: String,
-    interpreter: String,
+#[derive(Debug)]
+pub struct CGI {
+    pub extension: String,
+    pub interpreter: String,
 }

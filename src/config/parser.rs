@@ -1,78 +1,15 @@
-use std::fs;
+use std::str::FromStr;
 
-#[derive(Debug, Clone)]
-enum Token {
-    Word(String),
-    LBrace,
-    RBrace,
-    Semicolon,
-}
+use super::{Config, Server, Location, Method, CGI};
+use super::tokenizer::Token;
 
-fn tokenize(input: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-
-    for c in input.chars() {
-        match c {
-            '{' => {
-                push_word(&mut tokens, &mut current);
-                tokens.push(Token::LBrace);
-            }
-            '}' => {
-                push_word(&mut tokens, &mut current);
-                tokens.push(Token::RBrace);
-            }
-            ';' => {
-                push_word(&mut tokens, &mut current);
-                tokens.push(Token::Semicolon);
-            }
-            ' ' | '\n' | '\t' | '\r' => {
-                push_word(&mut tokens, &mut current);
-            }
-            _ => current.push(c),
-        }
-    }
-
-    push_word(&mut tokens, &mut current);
-
-    tokens
-}
-
-fn push_word(tokens: &mut Vec<Token>, current: &mut String) {
-    if !current.is_empty() {
-        tokens.push(Token::Word(current.clone()));
-        current.clear();
-    }
-}
-
-#[derive(Debug)]
-struct Config {
-    servers: Vec<Server>,
-}
-
-#[derive(Debug)]
-struct Server {
-    host: String,
-    port: u16,
-    locations: Vec<Location>,
-}
-
-#[derive(Debug)]
-struct Location {
-    path: String,
-    root: Option<String>,
-    index: Option<String>,
-    methods: Vec<String>,
-    autoindex: bool,
-}
-
-struct Parser {
+pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
 }
 
 impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, pos: 0 }
     }
 
@@ -80,19 +17,35 @@ impl Parser {
         self.tokens.get(self.pos)
     }
 
-    fn advance(&mut self) {
+    fn next(&mut self) -> Option<Token> {
+        let tok = self.tokens.get(self.pos).cloned();
         self.pos += 1;
+        tok
     }
 
-    fn parse_config(&mut self) -> Config {
+    fn expect_word(&mut self) -> String {
+        match self.next() {
+            Some(Token::Word(w)) => w,
+            _ => panic!("Expected word"),
+        }
+    }
+
+    fn expect(&mut self, expected: Token) {
+        let tok = self.next();
+        if tok != Some(expected) {
+            panic!("Unexpected token: {:?}", tok);
+        }
+    }
+
+    pub fn parse_config(&mut self) -> Config {
         let mut servers = Vec::new();
 
-        while let Some(token) = self.peek() {
-            match token {
-                Token::Word(word) if word == "server" => {
-                    servers.push(self.parse_server());
-                }
-                _ => panic!("Unexpected token at config level"),
+        while self.peek().is_some() {
+            let word = self.expect_word();
+            if word == "server" {
+                servers.push(self.parse_server());
+            } else {
+                panic!("Unexpected directive: {}", word);
             }
         }
 
@@ -100,92 +53,108 @@ impl Parser {
     }
 
     fn parse_server(&mut self) -> Server {
-        self.advance(); // server
-
-        self.expect_lbrace();
+        self.expect(Token::LBrace);
 
         let mut host = String::new();
         let mut port = 0;
         let mut locations = Vec::new();
 
-        loop {
-            match self.peek() {
-                Some(Token::Word(word)) if word == "host" => {
-                    self.advance();
-                    host = self.parse_word();
-                    self.expect_semicolon();
-                }
-
-                Some(Token::Word(word)) if word == "port" => {
-                    self.advance();
-                    port = self.parse_word().parse().unwrap();
-                    self.expect_semicolon();
-                }
-
-                Some(Token::Word(word)) if word == "location" => {
-                    locations.push(self.parse_location());
-                }
-
-                Some(Token::RBrace) => {
-                    self.advance();
+        while let Some(tok) = self.peek() {
+            match tok {
+                Token::RBrace => {
+                    self.next();
                     break;
                 }
-
-                _ => panic!("Invalid directive inside server"),
+                Token::Word(_) => {
+                    let directive = self.expect_word();
+                    match directive.as_str() {
+                        "host" => {
+                            host = self.expect_word();
+                            self.expect(Token::Semicolon);
+                        }
+                        "port" => {
+                            port = u16::from_str(&self.expect_word()).unwrap();
+                            self.expect(Token::Semicolon);
+                        }
+                        "location" => {
+                            locations.push(self.parse_location());
+                        }
+                        _ => {
+                            // skip unknown
+                            while self.next() != Some(Token::Semicolon) {}
+                        }
+                    }
+                }
+                _ => panic!("Unexpected token in server"),
             }
         }
 
-        Server {
-            host,
-            port,
-            locations,
-        }
+        Server { host, port, locations }
     }
 
     fn parse_location(&mut self) -> Location {
-        self.advance(); // location
+        let path = self.expect_word();
+        self.expect(Token::LBrace);
 
-        let path = self.parse_word();
-
-        self.expect_lbrace();
-
-        let mut root = None;
+        let mut root = String::new();
         let mut index = None;
         let mut methods = Vec::new();
         let mut autoindex = false;
+        let mut redirect = None;
+        let mut cgi = None;
 
-        loop {
-            match self.peek() {
-                Some(Token::Word(word)) if word == "root" => {
-                    self.advance();
-                    root = Some(self.parse_word());
-                    self.expect_semicolon();
-                }
-
-                Some(Token::Word(word)) if word == "index" => {
-                    self.advance();
-                    index = Some(self.parse_word());
-                    self.expect_semicolon();
-                }
-
-                Some(Token::Word(word)) if word == "methods" => {
-                    self.advance();
-                    methods = self.parse_methods();
-                    self.expect_semicolon();
-                }
-
-                Some(Token::Word(word)) if word == "autoindex" => {
-                    self.advance();
-                    autoindex = self.parse_word() == "on";
-                    self.expect_semicolon();
-                }
-
-                Some(Token::RBrace) => {
-                    self.advance();
+        while let Some(tok) = self.peek() {
+            match tok {
+                Token::RBrace => {
+                    self.next();
                     break;
                 }
+                Token::Word(_) => {
+                    let directive = self.expect_word();
+                    match directive.as_str() {
+                        "root" => {
+                            root = self.expect_word();
+                            self.expect(Token::Semicolon);
+                        }
+                        "index" => {
+                            index = Some(self.expect_word());
+                            self.expect(Token::Semicolon);
+                        }
+                        "methods" => {
+                            while let Some(Token::Word(_)) = self.peek() {
+                                let m = self.expect_word();
+                                methods.push(match m.as_str() {
+                                    "GET" => Method::GET,
+                                    "POST" => Method::POST,
+                                    "DELETE" => Method::DELETE,
+                                    _ => panic!("Unknown method"),
+                                });
+                            }
+                            self.expect(Token::Semicolon);
+                        }
+                        "autoindex" => {
+                            autoindex = self.expect_word() == "on";
+                            self.expect(Token::Semicolon);
+                        }
+                        "redirect" => {
+                            redirect = Some(self.expect_word());
+                            self.expect(Token::Semicolon);
+                        }
+                        "cgi" => {
+                            let ext = self.expect_word();
+                            self.expect(Token::Semicolon);
 
-                _ => panic!("Invalid directive in location"),
+                            cgi = Some(CGI {
+                                extension: ext,
+                                interpreter: "python3".into(),
+                            });
+                        }
+                        _ => {
+                            while self.next() != Some(Token::Semicolon) {}
+                        }
+                    }
+                }
+                _ => panic!("Unexpected token in location"),
             }
         }
 
@@ -195,62 +164,8 @@ impl Parser {
             index,
             methods,
             autoindex,
+            redirect,
+            cgi,
         }
     }
-
-    fn parse_methods(&mut self) -> Vec<String> {
-        let mut methods = Vec::new();
-
-        loop {
-            match self.peek() {
-                Some(Token::Word(word)) => {
-                    methods.push(word.clone());
-                    self.advance();
-                }
-
-                Some(Token::Semicolon) => break,
-
-                _ => panic!("Invalid method"),
-            }
-        }
-
-        methods
-    }
-
-    fn parse_word(&mut self) -> String {
-        match self.peek() {
-            Some(Token::Word(word)) => {
-                let value = word.clone();
-                self.advance();
-                value
-            }
-            _ => panic!("Expected word"),
-        }
-    }
-
-    fn expect_semicolon(&mut self) {
-        match self.peek() {
-            Some(Token::Semicolon) => self.advance(),
-            _ => panic!("Expected ;"),
-        }
-    }
-
-    fn expect_lbrace(&mut self) {
-        match self.peek() {
-            Some(Token::LBrace) => self.advance(),
-            _ => panic!("Expected {{"),
-        }
-    }
-}
-
-fn main() {
-    let config_text = fs::read_to_string("config.conf").expect("Cannot read config file");
-
-    let tokens = tokenize(&config_text);
-
-    let mut parser = Parser::new(tokens);
-
-    let config = parser.parse_config();
-
-    println!("{:#?}", config);
 }
