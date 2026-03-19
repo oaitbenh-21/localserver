@@ -76,7 +76,6 @@ impl Server {
                 }
             }
         }
-
     }
 
     fn accept_connections(
@@ -174,12 +173,4 @@ impl Server {
         // Prevent double-close — we'll manage this fd manually
         std::mem::forget(stream);
     }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-
 }
