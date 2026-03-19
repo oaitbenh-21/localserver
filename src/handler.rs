@@ -265,4 +265,55 @@ mod tests {
         let len = header(&bytes, "content-length").unwrap();
         assert_eq!(len, content.len().to_string());
     }
+
+    // ── POST tests ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_post_creates_file() {
+        let root = temp_dir("post_creates");
+        let req = post("/hello.txt", b"hello world");
+
+        capture(req, root.to_str().unwrap());
+
+        let written = fs::read(root.join("hello.txt")).unwrap();
+        assert_eq!(written, b"hello world");
+    }
+
+    #[test]
+    fn test_post_returns_200() {
+        let root = temp_dir("post_200");
+        let bytes = capture(post("/file.txt", b"data"), root.to_str().unwrap());
+
+        assert!(status_line(&bytes).contains("200 OK"));
+    }
+
+    #[test]
+    fn test_post_empty_body_returns_400() {
+        let root = temp_dir("post_empty");
+        let bytes = capture(post("/file.txt", b""), root.to_str().unwrap());
+
+        assert!(status_line(&bytes).contains("400 Bad Request"));
+    }
+
+    #[test]
+    fn test_post_creates_nested_directories() {
+        let root = temp_dir("post_nested");
+        let req = post("/a/b/c/file.txt", b"nested");
+
+        capture(req, root.to_str().unwrap());
+
+        let written = fs::read(root.join("a/b/c/file.txt")).unwrap();
+        assert_eq!(written, b"nested");
+    }
+
+    #[test]
+    fn test_post_overwrites_existing_file() {
+        let root = temp_dir("post_overwrite");
+        fs::write(root.join("file.txt"), b"old content").unwrap();
+
+        capture(post("/file.txt", b"new content"), root.to_str().unwrap());
+
+        let written = fs::read(root.join("file.txt")).unwrap();
+        assert_eq!(written, b"new content");
+    }
 }
