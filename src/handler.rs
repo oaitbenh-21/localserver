@@ -345,4 +345,21 @@ mod tests {
         let bytes = capture(delete("/ghost.txt"), root.to_str().unwrap());
         assert!(status_line(&bytes).contains("404 Not Found"));
     }
+
+    // ── Method tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_unknown_method_returns_405() {
+        let root = temp_dir("method_405");
+        let req = Request {
+            method: Method::Unknown("PATCH".to_string()),
+            path: "/".to_string(),
+            version: "HTTP/1.1".to_string(),
+            headers: std::collections::HashMap::new(),
+            body: Vec::new(),
+        };
+
+        let bytes = capture(req, root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("405 Method Not Allowed"));
+    }
 }
