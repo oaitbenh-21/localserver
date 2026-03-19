@@ -122,6 +122,17 @@ mod tests {
         path
     }
 
+    // Builds a minimal GET request struct
+    fn get(path: &str) -> Request {
+        Request {
+            method: Method::Get,
+            path: path.to_string(),
+            version: "HTTP/1.1".to_string(),
+            headers: std::collections::HashMap::new(),
+            body: Vec::new(),
+        }
+    }
+
     // Builds a minimal POST request struct with a body
     fn post(path: &str, body: &[u8]) -> Request {
         Request {
@@ -183,5 +194,75 @@ mod tests {
             }
         }
         None
+    }
+
+    // ── GET tests ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_existing_file() {
+        let root = temp_dir("get_existing");
+        fs::write(root.join("index.html"), b"<h1>hello</h1>").unwrap();
+
+        let bytes = capture(get("/index.html"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("200 OK"));
+        assert_eq!(body(&bytes), b"<h1>hello</h1>");
+    }
+    #[test]
+    fn test_get_root_serves_index_html() {
+        let root = temp_dir("get_root");
+        fs::write(root.join("index.html"), b"<h1>home</h1>").unwrap();
+
+        let bytes = capture(get("/"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("200 OK"));
+        assert_eq!(body(&bytes), b"<h1>home</h1>");
+    }
+
+    #[test]
+    fn test_get_missing_file_returns_404() {
+        let root = temp_dir("get_missing");
+
+        let bytes = capture(get("/missing.html"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("404 Not Found"));
+    }
+
+    #[test]
+    fn test_get_correct_content_type_css() {
+        let root = temp_dir("get_ct_css");
+        fs::write(root.join("style.css"), b"body{}").unwrap();
+
+        let bytes = capture(get("/style.css"), root.to_str().unwrap());
+        assert_eq!(header(&bytes, "content-type").as_deref(), Some("text/css"));
+    }
+
+    #[test]
+    fn test_get_correct_content_type_js() {
+        let root = temp_dir("get_ct_js");
+        fs::write(root.join("app.js"), b"console.log('hi')").unwrap();
+
+        let bytes = capture(get("/app.js"), root.to_str().unwrap());
+        assert_eq!(
+            header(&bytes, "content-type").as_deref(),
+            Some("application/javascript")
+        );
+    }
+    #[test]
+    fn test_get_binary_file_survives() {
+        let root = temp_dir("get_binary");
+        let data = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG magic bytes
+        fs::write(root.join("img.jpg"), &data).unwrap();
+
+        let bytes = capture(get("/img.jpg"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("200 OK"));
+        assert_eq!(body(&bytes), data);
+    }
+    #[test]
+    fn test_content_length_matches_file_size() {
+        let root = temp_dir("get_content_length");
+        let content = b"exactly nineteen!";
+        fs::write(root.join("file.txt"), content).unwrap();
+
+        let bytes = capture(get("/file.txt"), root.to_str().unwrap());
+        let len = header(&bytes, "content-length").unwrap();
+        assert_eq!(len, content.len().to_string());
     }
 }
