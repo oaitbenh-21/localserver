@@ -316,4 +316,33 @@ mod tests {
         let written = fs::read(root.join("file.txt")).unwrap();
         assert_eq!(written, b"new content");
     }
+
+    // ── DELETE tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_delete_removes_file() {
+        let root = temp_dir("delete_removes");
+        fs::write(root.join("bye.txt"), b"goodbye").unwrap();
+
+        capture(delete("/bye.txt"), root.to_str().unwrap());
+
+        assert!(!root.join("bye.txt").exists());
+    }
+
+    #[test]
+    fn test_delete_returns_200() {
+        let root = temp_dir("delete_200");
+        fs::write(root.join("file.txt"), b"data").unwrap();
+
+        let bytes = capture(delete("/file.txt"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("200 OK"));
+    }
+
+    #[test]
+    fn test_delete_missing_file_returns_404() {
+        let root = temp_dir("delete_missing");
+
+        let bytes = capture(delete("/ghost.txt"), root.to_str().unwrap());
+        assert!(status_line(&bytes).contains("404 Not Found"));
+    }
 }
