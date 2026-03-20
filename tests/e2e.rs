@@ -135,3 +135,37 @@ fn e2e_content_length_matches_body() {
 
     assert_eq!(declared_len, body(&response).len());
 }
+
+// ── POST tests ────────────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_post_upload_and_retrieve() {
+    let port = start_server();
+    let content = "hello from e2e test";
+
+    // Upload
+    let upload = format!(
+        "POST /uploads/e2e_test.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        content.len(),
+        content
+    );
+    let response = send_request(port, &upload);
+    assert!(status_line(&response).contains("200 OK"));
+
+    // Retrieve
+    let retrieve = send_request(port,
+        "GET /uploads/e2e_test.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(status_line(&retrieve).contains("200 OK"));
+    assert_eq!(body(&retrieve), content.as_bytes());
+}
+
+#[test]
+fn e2e_post_empty_body_returns_400() {
+    let port = start_server();
+    let request =
+        "POST /uploads/empty.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+
+    let response = send_request(port, request);
+    assert!(status_line(&response).contains("400 Bad Request"));
+}
