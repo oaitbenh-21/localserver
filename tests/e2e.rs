@@ -223,3 +223,18 @@ fn e2e_garbage_request_returns_400() {
     let response = send_request(port, "GARBAGE\r\n\r\n");
     assert!(status_line(&response).contains("400 Bad Request"));
 }
+
+#[test]
+fn e2e_empty_request_does_not_crash() {
+    let port = start_server();
+    // Send literally nothing then close — server must survive
+    let stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+    drop(stream);
+
+    // Server still alive — send a real request
+    thread::sleep(Duration::from_millis(50));
+    let response = send_request(port,
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(!response.is_empty());
+}
