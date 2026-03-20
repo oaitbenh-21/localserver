@@ -153,8 +153,9 @@ fn e2e_post_upload_and_retrieve() {
     assert!(status_line(&response).contains("200 OK"));
 
     // Retrieve
-    let retrieve = send_request(port,
-        "GET /uploads/e2e_test.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let retrieve = send_request(
+        port,
+        "GET /uploads/e2e_test.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(status_line(&retrieve).contains("200 OK"));
     assert_eq!(body(&retrieve), content.as_bytes());
@@ -163,8 +164,7 @@ fn e2e_post_upload_and_retrieve() {
 #[test]
 fn e2e_post_empty_body_returns_400() {
     let port = start_server();
-    let request =
-        "POST /uploads/empty.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    let request = "POST /uploads/empty.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 
     let response = send_request(port, request);
     assert!(status_line(&response).contains("400 Bad Request"));
@@ -183,14 +183,16 @@ fn e2e_delete_uploaded_file() {
     send_request(port, &upload);
 
     // Delete it
-    let delete = send_request(port,
-        "DELETE /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let delete = send_request(
+        port,
+        "DELETE /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(status_line(&delete).contains("200 OK"));
 
     // Confirm gone
-    let confirm = send_request(port,
-        "GET /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let confirm = send_request(
+        port,
+        "GET /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(status_line(&confirm).contains("404 Not Found"));
 }
@@ -198,8 +200,9 @@ fn e2e_delete_uploaded_file() {
 #[test]
 fn e2e_delete_missing_file_returns_404() {
     let port = start_server();
-    let response = send_request(port,
-        "DELETE /ghost.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let response = send_request(
+        port,
+        "DELETE /ghost.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(status_line(&response).contains("404 Not Found"));
 }
@@ -209,8 +212,9 @@ fn e2e_delete_missing_file_returns_404() {
 #[test]
 fn e2e_unknown_method_returns_405() {
     let port = start_server();
-    let response = send_request(port,
-        "PATCH / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let response = send_request(
+        port,
+        "PATCH / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(status_line(&response).contains("405 Method Not Allowed"));
 }
@@ -224,6 +228,7 @@ fn e2e_garbage_request_returns_400() {
     assert!(status_line(&response).contains("400 Bad Request"));
 }
 
+// note, here we are making sure the server doesn't crash when a client connects and immediately disconnects without sending anything.
 #[test]
 fn e2e_empty_request_does_not_crash() {
     let port = start_server();
@@ -233,8 +238,11 @@ fn e2e_empty_request_does_not_crash() {
 
     // Server still alive — send a real request
     thread::sleep(Duration::from_millis(50));
-    let response = send_request(port,
-        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    let response = send_request(
+        port,
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert!(!response.is_empty());
 }
+
+// ── Concurrency tests ─────────────────────────────────────────────────────────
