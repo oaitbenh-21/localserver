@@ -100,3 +100,22 @@ fn e2e_get_missing_returns_404() {
     );
     assert!(status_line(&response).contains("404 Not Found"));
 }
+
+#[test]
+fn e2e_response_is_valid_http() {
+    let port = start_server();
+    let response = send_request(
+        port,
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
+    let raw = String::from_utf8_lossy(&response);
+
+    // Must start with HTTP/1.1
+    assert!(raw.starts_with("HTTP/1.1"));
+
+    // Must contain \r\n\r\n separator
+    assert!(raw.contains("\r\n\r\n"));
+
+    // Must have Content-Length header
+    assert!(header(&response, "content-length").is_some());
+}
