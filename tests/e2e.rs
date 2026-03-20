@@ -169,3 +169,37 @@ fn e2e_post_empty_body_returns_400() {
     let response = send_request(port, request);
     assert!(status_line(&response).contains("400 Bad Request"));
 }
+
+// ── DELETE tests ──────────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_delete_uploaded_file() {
+    let port = start_server();
+
+    // Upload first
+    let upload = format!(
+        "POST /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\nConnection: close\r\n\r\ndata"
+    );
+    send_request(port, &upload);
+
+    // Delete it
+    let delete = send_request(port,
+        "DELETE /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(status_line(&delete).contains("200 OK"));
+
+    // Confirm gone
+    let confirm = send_request(port,
+        "GET /uploads/to_delete.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(status_line(&confirm).contains("404 Not Found"));
+}
+
+#[test]
+fn e2e_delete_missing_file_returns_404() {
+    let port = start_server();
+    let response = send_request(port,
+        "DELETE /ghost.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(status_line(&response).contains("404 Not Found"));
+}
