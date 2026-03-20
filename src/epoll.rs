@@ -94,3 +94,6 @@ pub fn set_nonblocking(fd: RawFd) -> Result<(), std::io::Error> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {}
