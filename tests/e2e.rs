@@ -246,3 +246,41 @@ fn e2e_empty_request_does_not_crash() {
 }
 
 // ── Concurrency tests ─────────────────────────────────────────────────────────
+#[test]
+fn e2e_handles_concurrent_connections() {
+    let port = start_server();
+
+    // Fire 10 simultaneous connections
+    let handles: Vec<_> = (0..10).map(|i| {
+        thread::spawn(move || {
+            let response = send_request(port, &format!(
+                "POST /uploads/concurrent_{}.txt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\nConnection: close\r\n\r\ndata",
+                i
+            ));
+            status_line(&response).contains("200 OK")
+        })
+    }).collect();
+
+    let results: Vec<bool> = handles.into_iter()
+        .map(|h| h.join().unwrap())
+        .collect();
+
+    // Every single request must have succeeded
+    assert!(results.iter().all(|&ok| ok));
+}
+
+#[test]
+fn e2e_server_survives_multiple_bad_requests() {
+    let port = start_server();
+
+    // Hammer the server with garbage
+    for _ in 0..5 {
+        send_request(port, "GARBAGE DATA\r\n\r\n");
+    }
+
+    // Server must still be alive
+    let response = send_request(port,
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(!response.is_empty());
+}
