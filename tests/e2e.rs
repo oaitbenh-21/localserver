@@ -214,3 +214,12 @@ fn e2e_unknown_method_returns_405() {
     );
     assert!(status_line(&response).contains("405 Method Not Allowed"));
 }
+
+// ── Bad request tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_garbage_request_returns_400() {
+    let port = start_server();
+    let response = send_request(port, "GARBAGE\r\n\r\n");
+    assert!(status_line(&response).contains("400 Bad Request"));
+}
