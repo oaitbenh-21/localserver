@@ -203,3 +203,14 @@ fn e2e_delete_missing_file_returns_404() {
     );
     assert!(status_line(&response).contains("404 Not Found"));
 }
+
+// ── Method tests ──────────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_unknown_method_returns_405() {
+    let port = start_server();
+    let response = send_request(port,
+        "PATCH / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    assert!(status_line(&response).contains("405 Method Not Allowed"));
+}
