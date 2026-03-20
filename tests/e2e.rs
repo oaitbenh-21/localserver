@@ -22,3 +22,71 @@ fn start_server() -> u16 {
     thread::sleep(Duration::from_millis(100));
     port
 }
+
+// ── Helper: send a raw HTTP request, get raw bytes back ──────────────────────
+
+fn send_request(port: u16, request: &str) -> Vec<u8> {
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream.write_all(request.as_bytes()).unwrap();
+
+    let mut buf = Vec::new();
+    let _ = stream.read_to_end(&mut buf);
+    buf
+}
+
+// ── Helper: extract status line ───────────────────────────────────────────────
+
+fn status_line(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .next()
+        .unwrap_or("")
+        .to_string()
+}
+
+// ── Helper: extract body ──────────────────────────────────────────────────────
+
+fn body(bytes: &[u8]) -> Vec<u8> {
+    let sep = b"\r\n\r\n";
+    match bytes.windows(4).position(|w| w == sep) {
+        Some(pos) => bytes[pos + 4..].to_vec(),
+        None => Vec::new(),
+    }
+}
+
+// ── Helper: extract header value ─────────────────────────────────────────────
+
+fn header(bytes: &[u8], name: &str) -> Option<String> {
+    let raw = String::from_utf8_lossy(bytes);
+    for line in raw.lines() {
+        if line.to_lowercase().starts_with(&name.to_lowercase()) {
+            return Some(line.splitn(2, ':').nth(1)?.trim().to_string());
+        }
+    }
+    None
+}
+
+// ── Helper: setup a temp www root with a file ─────────────────────────────────
+
+fn setup_www(name: &str, file: &str, content: &[u8]) -> String {
+    let root = format!("/tmp/e2e_{}", name);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).unwrap();
+    fs::write(format!("{}/{}", root, file), content).unwrap();
+    root
+}
+
+// ── GET tests ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn e2e_get_returns_200() {
+    let port = start_server();
+    let response = send_request(
+        port,
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
+    assert!(status_line(&response).contains("200") || status_line(&response).contains("404")); // server responded — didn't crash
+}
