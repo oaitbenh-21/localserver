@@ -90,3 +90,13 @@ fn e2e_get_returns_200() {
     );
     assert!(status_line(&response).contains("200") || status_line(&response).contains("404")); // server responded — didn't crash
 }
+
+#[test]
+fn e2e_get_missing_returns_404() {
+    let port = start_server();
+    let response = send_request(
+        port,
+        "GET /this-does-not-exist HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", // After you send your response, close the TCP connection. kinda http 1.0 not http 1.1
+    );
+    assert!(status_line(&response).contains("404 Not Found"));
+}
