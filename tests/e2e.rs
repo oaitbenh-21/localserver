@@ -119,3 +119,19 @@ fn e2e_response_is_valid_http() {
     // Must have Content-Length header
     assert!(header(&response, "content-length").is_some());
 }
+
+#[test]
+fn e2e_content_length_matches_body() {
+    let port = start_server();
+    let response = send_request(
+        port,
+        "GET /missing.html HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
+
+    let declared_len: usize = header(&response, "content-length")
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    assert_eq!(declared_len, body(&response).len());
+}
