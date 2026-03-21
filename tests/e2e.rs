@@ -283,4 +283,4 @@ fn e2e_server_survives_multiple_bad_requests() {
         "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
     );
     assert!(!response.is_empty());
-}f
+}

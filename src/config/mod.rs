@@ -48,7 +48,7 @@ impl Config {
 
         let tokens = tokenizer::tokenize(&content);
         let mut parser = parser::Parser::new(tokens);
-        parser.parse_config()
+        parser.parse_config().map_err(|e| e.to_string())
     }
 }
 

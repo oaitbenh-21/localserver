@@ -1,5 +1,6 @@
 pub mod config;
 pub mod epoll;
+pub mod errors;
 pub mod handler;
 pub mod request;
 pub mod response;
