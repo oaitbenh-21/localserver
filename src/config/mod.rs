@@ -40,3 +40,14 @@ pub struct CGI {
     pub extension: String,
     pub interpreter: String,
 }
+
+impl Config {
+    pub fn from_file(path: &str) -> Result<Config, String> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| format!("Cannot read config file '{}': {}", path, e))?;
+
+        let tokens = tokenizer::tokenize(&content);
+        let mut parser = parser::Parser::new(tokens);
+        parser.parse_config()
+    }
+}

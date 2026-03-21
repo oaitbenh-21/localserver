@@ -1,3 +1,4 @@
+pub mod config;
 pub mod epoll;
 pub mod handler;
 pub mod request;

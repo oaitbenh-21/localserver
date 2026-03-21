@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use super::{Config, Server, Location, Method, CGI};
 use super::tokenizer::Token;
+use super::{CGI, Config, Location, Method, ServerConfig};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -52,7 +52,7 @@ impl Parser {
         Config { servers }
     }
 
-    fn parse_server(&mut self) -> Server {
+    fn parse_server(&mut self) -> ServerConfig {
         self.expect(Token::LBrace);
 
         let mut host = String::new();
@@ -89,7 +89,12 @@ impl Parser {
             }
         }
 
-        Server { host, port, locations }
+        ServerConfig {
+            host,
+            port,
+            locations,
+            todo!()
+        }
     }
 
     fn parse_location(&mut self) -> Location {
@@ -149,9 +154,7 @@ impl Parser {
                                 interpreter: "python3".into(),
                             });
                         }
-                        _ => {
-                            while self.next() != Some(Token::Semicolon) {}
-                        }
+                        _ => while self.next() != Some(Token::Semicolon) {},
                     }
                 }
                 _ => panic!("Unexpected token in location"),
