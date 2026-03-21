@@ -51,3 +51,30 @@ impl Config {
         parser.parse_config()
     }
 }
+
+impl ServerConfig {
+    pub fn addr(&self) -> String {
+        format!("{}:{}", self.host, self.port)
+    }
+}
+
+// Converts "10MB", "1kb", "500" etc. into bytes
+pub fn parse_body_size(s: &str) -> Result<usize, String> {
+    let s = s.to_lowercase();
+
+    if let Some(n) = s.strip_suffix("mb") {
+        n.trim()
+            .parse::<usize>()
+            .map(|n| n * 1024 * 1024)
+            .map_err(|_| format!("Invalid size: {}", s))
+    } else if let Some(n) = s.strip_suffix("kb") {
+        n.trim()
+            .parse::<usize>()
+            .map(|n| n * 1024)
+            .map_err(|_| format!("Invalid size: {}", s))
+    } else {
+        s.trim()
+            .parse::<usize>()
+            .map_err(|_| format!("Invalid size: {}", s))
+    }
+}
