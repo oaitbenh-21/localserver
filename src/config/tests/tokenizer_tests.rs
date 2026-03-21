@@ -39,3 +39,42 @@ fn test_word_with_semicolon() {
         ]
     );
 }
+
+
+// ── Whitespace handling ───────────────────────────────────────────────────────
+
+#[test]
+fn test_multiple_spaces_between_words() {
+    let tokens = tokenize("host    127.0.0.1");
+    assert_eq!(tokens, vec![
+        Token::Word("host".to_string()),
+        Token::Word("127.0.0.1".to_string()),
+    ]);
+}
+
+#[test]
+fn test_newlines_are_whitespace() {
+    let tokens = tokenize("host\n127.0.0.1");
+    assert_eq!(tokens, vec![
+        Token::Word("host".to_string()),
+        Token::Word("127.0.0.1".to_string()),
+    ]);
+}
+
+#[test]
+fn test_tabs_are_whitespace() {
+    let tokens = tokenize("host\t127.0.0.1");
+    assert_eq!(tokens, vec![
+        Token::Word("host".to_string()),
+        Token::Word("127.0.0.1".to_string()),
+    ]);
+}
+
+#[test]
+fn test_leading_trailing_whitespace() {
+    let tokens = tokenize("  server  ");
+    assert_eq!(tokens, vec![Token::Word("server".to_string())]);
+}
+
+
+
