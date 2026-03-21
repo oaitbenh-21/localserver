@@ -78,3 +78,18 @@ fn test_leading_trailing_whitespace() {
 
 
 
+// ── Real config fragments ─────────────────────────────────────────────────────
+
+#[test]
+fn test_server_block_tokens() {
+    let input = "server {\n    host 127.0.0.1;\n}";
+    let tokens = tokenize(input);
+    assert_eq!(tokens, vec![
+        Token::Word("server".to_string()),
+        Token::LBrace,
+        Token::Word("host".to_string()),
+        Token::Word("127.0.0.1".to_string()),
+        Token::Semicolon,
+        Token::RBrace,
+    ]);
+}
