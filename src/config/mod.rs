@@ -1,15 +1,19 @@
-pub mod tokenizer;
 pub mod parser;
+pub mod tokenizer;
+
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Config {
-    pub servers: Vec<Server>,
+    pub servers: Vec<ServerConfig>,
 }
 
 #[derive(Debug)]
-pub struct Server {
+pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    pub client_max_body_size: usize,       // in bytes
+    pub error_pages: HashMap<u16, String>, // e.g. 404 → "./error_pages/404.html"
     pub locations: Vec<Location>,
 }
 
@@ -24,11 +28,11 @@ pub struct Location {
     pub cgi: Option<CGI>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Method {
-    GET,
-    POST,
-    DELETE,
+    Get,
+    Post,
+    Delete,
 }
 
 #[derive(Debug)]
