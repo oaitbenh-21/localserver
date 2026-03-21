@@ -1,0 +1,41 @@
+use crate::config::tokenizer::{Token, tokenize};
+
+
+// ── Basic tokens ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_empty_input() {
+    let tokens = tokenize("");
+    assert!(tokens.is_empty());
+}
+
+#[test]
+fn test_single_word() {
+    let tokens = tokenize("server");
+    assert_eq!(tokens, vec![Token::Word("server".to_string())]);
+}
+
+#[test]
+fn test_braces() {
+    let tokens = tokenize("{}");
+    assert_eq!(tokens, vec![Token::LBrace, Token::RBrace]);
+}
+
+#[test]
+fn test_semicolon() {
+    let tokens = tokenize(";");
+    assert_eq!(tokens, vec![Token::Semicolon]);
+}
+
+#[test]
+fn test_word_with_semicolon() {
+    let tokens = tokenize("host 127.0.0.1;");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::Word("host".to_string()),
+            Token::Word("127.0.0.1".to_string()),
+            Token::Semicolon,
+        ]
+    );
+}
