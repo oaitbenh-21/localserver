@@ -1,6 +1,9 @@
 pub mod parser;
 pub mod tokenizer;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 
 #[derive(Debug)]
